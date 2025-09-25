@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation template to create a Jupyter Notebook in SageMaker with Bedrock invoke permissions
+
+Resources:
+  SageMakerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/sagemaker/NotebookInstances/${AWS::StackName}-Notebook"
+      RetentionInDays: 7
+
+  SageMakerNotebookInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SageMakerNotebookPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "sagemaker:CreatePresignedNotebookInstanceUrl"
+                  - "sagemaker:DescribeNotebookInstance"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                Resource: !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:notebook-instance/${AWS::StackName}-Notebook"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/*"
+              - Effect: Allow
+                Action:
+                  - "bedrock:InvokeModel"
+                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.nova-pro-v1:0"
+
+  SageMakerNotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      InstanceType: ml.t3.medium
+      NotebookInstanceName: !Sub "${AWS::StackName}-Notebook"
+      RoleArn: !GetAtt SageMakerNotebookInstanceRole.Arn
+      DefaultCodeRepository: https://github.com/aws-samples/sample-generative-poi-detection
+      RootAccess: Disabled
+      InstanceMetadataServiceConfiguration:
+        MinimumInstanceMetadataServiceVersion: "2"
+
+Outputs:
+  NotebookURL:
+    Description: Information about the value
+    Value: !Sub "https://${AWS::StackName}-Notebook.notebook.${AWS::Region}.sagemaker.aws/notebooks/sample-generative-poi-detection/Nova_Pro_POI_detection.ipynb"
